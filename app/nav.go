@@ -14,10 +14,13 @@ import (
 func (a *App) buildNav() fyne.CanvasObject {
 	content := container.NewStack()
 
-	dashboard := screens.NewDashboard(a.filterState, a.worklogState, a.repo, a.fyneApp.Preferences(), a.window)
+	dashboard := screens.NewDashboard(a.filterState, a.worklogState, a.repo, a.fyneApp.Preferences(), a.window, a.tr)
 	report := screens.NewReport(a.filterState, a.reportState, a.repo, a.fyneApp.Preferences(), a.window)
-	manageTeams := screens.NewManageTeams() // full impl in Plan 4
-	settings := screens.NewSettings()       // full impl in Plan 4
+	manageTeams := screens.NewManageTeams(a.repo, a.tr, a.window)
+	settings := screens.NewSettings(a.repo, a.fyneApp.Preferences(), a.tr, a.window, func() {
+		// Rebuild nav with refreshed i18n strings when language changes
+		a.window.SetContent(a.buildNav())
+	})
 
 	showScreen := func(o fyne.CanvasObject) {
 		content.Objects = []fyne.CanvasObject{o}
@@ -25,10 +28,10 @@ func (a *App) buildNav() fyne.CanvasObject {
 	}
 
 	sidebar := container.NewVBox(
-		widget.NewButtonWithIcon("Dashboard", theme.HomeIcon(), func() { showScreen(dashboard.Canvas()) }),
-		widget.NewButtonWithIcon("Report", theme.DocumentIcon(), func() { showScreen(report.Canvas()) }),
-		widget.NewButtonWithIcon("Teams", theme.GridIcon(), func() { showScreen(manageTeams.Canvas()) }),
-		widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), func() { showScreen(settings.Canvas()) }),
+		widget.NewButtonWithIcon(a.tr.T("nav.dashboard"), theme.HomeIcon(), func() { showScreen(dashboard.Canvas()) }),
+		widget.NewButtonWithIcon(a.tr.T("nav.report"), theme.DocumentIcon(), func() { showScreen(report.Canvas()) }),
+		widget.NewButtonWithIcon(a.tr.T("nav.teams"), theme.GridIcon(), func() { showScreen(manageTeams.Canvas()) }),
+		widget.NewButtonWithIcon(a.tr.T("nav.settings"), theme.SettingsIcon(), func() { showScreen(settings.Canvas()) }),
 	)
 
 	showScreen(dashboard.Canvas())
