@@ -180,7 +180,7 @@ Custom `canvas.Raster` widgets using Go's `image/draw` stdlib — no third-party
 | Excel | `github.com/xuri/excelize/v2` | Pure Go |
 | PDF | `github.com/jung-kurt/gofpdf` | Pure Go |
 
-Export functions live in `export/` and receive typed data structs — no screen-level coupling.
+Export functions live in `export/` and receive typed data structs — no screen-level coupling. Each export button calls `dialog.ShowFileSave()` to let the user pick the save path, then passes the chosen URI to the relevant export function.
 
 ---
 
