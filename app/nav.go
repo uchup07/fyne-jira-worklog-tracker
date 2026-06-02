@@ -15,9 +15,9 @@ func (a *App) buildNav() fyne.CanvasObject {
 	content := container.NewStack()
 
 	dashboard := screens.NewDashboard(a.filterState, a.worklogState, a.repo, a.fyneApp.Preferences(), a.window)
-	report := screens.NewReport()         // full impl wired in Task 8
+	report := screens.NewReport(a.filterState, a.reportState, a.repo, a.fyneApp.Preferences(), a.window)
 	manageTeams := screens.NewManageTeams() // full impl in Plan 4
-	settings := screens.NewSettings()      // full impl in Plan 4
+	settings := screens.NewSettings()       // full impl in Plan 4
 
 	showScreen := func(o fyne.CanvasObject) {
 		content.Objects = []fyne.CanvasObject{o}
