@@ -4,6 +4,7 @@ package app
 import (
 	"github.com/uchup07/fyne-jira-worklog-tracker/custom"
 	"github.com/uchup07/fyne-jira-worklog-tracker/db"
+	"github.com/uchup07/fyne-jira-worklog-tracker/i18n"
 	"github.com/uchup07/fyne-jira-worklog-tracker/jira"
 	"github.com/uchup07/fyne-jira-worklog-tracker/screens"
 	"github.com/uchup07/fyne-jira-worklog-tracker/state"
@@ -21,15 +22,17 @@ type App struct {
 	reportState  *state.ReportState
 
 	repo *db.Repository
+	tr   *i18n.I18n
 }
 
-// New initialises the App. DB is opened from Fyne's app-storage directory
-// so it persists between runs on the user's machine.
+// New initialises the App. DB is opened from Fyne's app-storage directory.
 func New(a fyne.App, w fyne.Window) *App {
 	a.Settings().SetTheme(custom.NewAppTheme())
 
 	dbPath := a.Storage().RootURI().Path() + "/worklog.db"
 	repo := db.Open(dbPath)
+
+	lang := a.Preferences().StringWithFallback("lang", "en")
 
 	return &App{
 		fyneApp:      a,
@@ -38,6 +41,7 @@ func New(a fyne.App, w fyne.Window) *App {
 		worklogState: state.NewWorklogState(),
 		reportState:  state.NewReportState(),
 		repo:         repo,
+		tr:           i18n.New(lang),
 	}
 }
 
