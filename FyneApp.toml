@@ -1,0 +1,8 @@
+Website = "https://github.com/uchup07/fyne-jira-worklog-tracker"
+
+[Details]
+Icon = "assets/icon.png"
+Name = "Jira Worklog Tracker"
+ID = "com.uchup07.jira-worklog-tracker"
+Version = "1.0.0"
+Build = 3

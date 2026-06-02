@@ -3,9 +3,6 @@
 *.app
 *.dmg
 
-# Fyne bundle output
-FyneApp.toml
-
 # OS files
 .DS_Store
 
