@@ -5,6 +5,7 @@ import (
 	"github.com/uchup07/fyne-jira-worklog-tracker/custom"
 	"github.com/uchup07/fyne-jira-worklog-tracker/db"
 	"github.com/uchup07/fyne-jira-worklog-tracker/jira"
+	"github.com/uchup07/fyne-jira-worklog-tracker/screens"
 	"github.com/uchup07/fyne-jira-worklog-tracker/state"
 
 	"fyne.io/fyne/v2"
@@ -40,14 +41,27 @@ func New(a fyne.App, w fyne.Window) *App {
 	}
 }
 
-// Run wires navigation and starts the Fyne event loop.
+// Run checks for saved config: shows Setup wizard on first run, else shows main nav.
 func (a *App) Run() {
-	a.window.SetContent(a.buildNav())
+	cfg, _ := a.repo.Config.Get()
+	if cfg == nil {
+		a.showSetup()
+	} else {
+		a.window.SetContent(a.buildNav())
+	}
 	a.window.ShowAndRun()
 }
 
-// JiraClient builds a Jira client from the stored config + the OS-keychain token.
-// Returns nil if config is not yet saved or token is missing.
+// showSetup presents the first-run wizard. On save it transitions to the main nav.
+func (a *App) showSetup() {
+	setup := screens.NewSetup(a.repo, a.fyneApp.Preferences(), a.window, func() {
+		a.window.SetContent(a.buildNav())
+	})
+	a.window.SetContent(setup.Canvas())
+}
+
+// JiraClient builds a Jira client from stored config + OS-keychain token.
+// Returns nil if config is missing or token is empty.
 func (a *App) JiraClient() *jira.Client {
 	cfg, err := a.repo.Config.Get()
 	if err != nil || cfg == nil {
