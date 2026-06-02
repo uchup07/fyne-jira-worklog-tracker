@@ -1,0 +1,16 @@
+# Go build output
+*.exe
+*.app
+*.dmg
+
+# Fyne bundle output
+FyneApp.toml
+
+# OS files
+.DS_Store
+
+# SQLite databases (local state only)
+*.db
+
+# Test cache
+.testcache/
