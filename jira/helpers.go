@@ -60,6 +60,48 @@ func buildWorklogJQL(f SearchFilters) string {
 	return strings.Join(parts, " AND ")
 }
 
+// extractADFText extracts plain text from a JSON value that is either a plain
+// string or an Atlassian Document Format (ADF) object (Jira Cloud API v3).
+func extractADFText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	var node map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &node); err != nil {
+		return ""
+	}
+	// Text leaf node: return its "text" value.
+	if typeRaw, ok := node["type"]; ok {
+		var typeName string
+		json.Unmarshal(typeRaw, &typeName) //nolint:errcheck
+		if typeName == "text" {
+			var text string
+			json.Unmarshal(node["text"], &text) //nolint:errcheck
+			return text
+		}
+	}
+	// Recurse into content array.
+	contentRaw, ok := node["content"]
+	if !ok {
+		return ""
+	}
+	var children []json.RawMessage
+	if err := json.Unmarshal(contentRaw, &children); err != nil {
+		return ""
+	}
+	var parts []string
+	for _, child := range children {
+		if t := extractADFText(child); t != "" {
+			parts = append(parts, t)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
 // containsStr returns true if slice contains val.
 func containsStr(slice []string, val string) bool {
 	for _, s := range slice {

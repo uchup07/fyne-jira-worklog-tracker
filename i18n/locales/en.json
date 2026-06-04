@@ -1,9 +1,14 @@
 {
   "app.title": "Jira Worklog Tracker",
   "nav.dashboard": "Dashboard",
-  "nav.report": "Report",
+  "nav.worklog": "Worklog",
+  "nav.user_overview": "User Overview",
   "nav.teams": "Teams",
+  "nav.reports": "Reports",
+  "nav.report": "Report",
   "nav.settings": "Settings",
+  "nav.section.main": "Main Menu",
+  "nav.jira_config": "Jira Configuration",
 
   "setup.title": "Welcome to Jira Worklog Tracker",
   "setup.subtitle": "Enter your Jira credentials to get started.",

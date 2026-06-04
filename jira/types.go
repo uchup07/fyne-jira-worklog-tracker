@@ -1,7 +1,10 @@
 // jira/types.go
 package jira
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // User represents a Jira account.
 type User struct {
@@ -19,6 +22,28 @@ type Worklog struct {
 	TimeSpentSeconds int    `json:"timeSpentSeconds"`
 	Started          string `json:"started"` // "2006-01-02T15:04:05.000+0700"
 	Comment          string // flattened from Atlassian Document Format (ADF)
+}
+
+// UnmarshalJSON handles Jira API v3's comment field, which can be either a
+// plain string (Jira Server) or an ADF object (Jira Cloud).
+func (w *Worklog) UnmarshalJSON(b []byte) error {
+	type wire struct {
+		ID               string          `json:"id"`
+		Author           User            `json:"author"`
+		TimeSpentSeconds int             `json:"timeSpentSeconds"`
+		Started          string          `json:"started"`
+		Comment          json.RawMessage `json:"comment"`
+	}
+	var v wire
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	w.ID = v.ID
+	w.Author = v.Author
+	w.TimeSpentSeconds = v.TimeSpentSeconds
+	w.Started = v.Started
+	w.Comment = extractADFText(v.Comment)
+	return nil
 }
 
 // Issue is decoded from the Jira search API. Fields is a raw map so we can

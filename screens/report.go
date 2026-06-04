@@ -42,7 +42,7 @@ func (r *Report) Canvas() fyne.CanvasObject { return r.canvas }
 func (r *Report) build() {
 	r.progress = widgets.NewSearchProgress()
 
-	filterBar := widgets.NewFilterBar(r.fs, r.handleSearch, r.handleCancel)
+	filterBar := widgets.NewFilterBar(r.fs, r.handleSearch, r.handleCancel, r.window)
 	mappingTable := widgets.NewMappingTable(r.rs)
 
 	// Charts area — rebuilt when report binding changes

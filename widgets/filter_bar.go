@@ -9,7 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// FilterBar renders date range inputs plus Search and Cancel buttons.
+// FilterBar renders date range pickers plus Search and Cancel buttons.
 type FilterBar struct {
 	fs     *state.FilterState
 	canvas fyne.CanvasObject
@@ -17,21 +17,18 @@ type FilterBar struct {
 
 // NewFilterBar creates the filter bar. onSearch and onCancel are called when
 // the respective buttons are clicked.
-func NewFilterBar(fs *state.FilterState, onSearch, onCancel func()) *FilterBar {
+func NewFilterBar(fs *state.FilterState, onSearch, onCancel func(), window fyne.Window) *FilterBar {
 	fb := &FilterBar{fs: fs}
 
-	startEntry := widget.NewEntryWithData(fs.StartDate)
-	startEntry.PlaceHolder = "YYYY-MM-DD"
-
-	endEntry := widget.NewEntryWithData(fs.EndDate)
-	endEntry.PlaceHolder = "YYYY-MM-DD"
+	startPicker := NewDatePicker(fs.StartDate, window)
+	endPicker := NewDatePicker(fs.EndDate, window)
 
 	searchBtn := widget.NewButton("Search", onSearch)
 	cancelBtn := widget.NewButton("Cancel", onCancel)
 
 	fb.canvas = container.NewHBox(
-		widget.NewLabel("From:"), startEntry,
-		widget.NewLabel("To:"), endEntry,
+		widget.NewLabel("From:"), startPicker.Canvas(),
+		widget.NewLabel("To:"), endPicker.Canvas(),
 		searchBtn,
 		cancelBtn,
 	)

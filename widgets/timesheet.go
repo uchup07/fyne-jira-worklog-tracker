@@ -16,33 +16,56 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// Timesheet renders a monthly heatmap of hours logged per day.
+// Timesheet renders a monthly heatmap of hours logged per day with month navigation.
 type Timesheet struct {
-	ws      *state.WorklogState
-	wrap    *fyne.Container // outer container so we can swap content on refresh
+	ws           *state.WorklogState
+	dayTotals    map[string]int // aggregated from the current search result
+	viewingMonth time.Time      // month currently shown in the grid
+	monthLabel   *widget.Label
+	calWrap      *fyne.Container // swapped on every month change
+	canvas       fyne.CanvasObject
 }
 
 // NewTimesheet creates a timesheet bound to ws.Groups.
 func NewTimesheet(ws *state.WorklogState) *Timesheet {
-	ts := &Timesheet{ws: ws}
-	ts.wrap = container.NewStack(ts.buildContent())
+	ts := &Timesheet{
+		ws:           ws,
+		dayTotals:    map[string]int{},
+		viewingMonth: time.Now(),
+	}
 
+	ts.monthLabel = widget.NewLabelWithStyle("", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	ts.calWrap = container.NewStack()
+
+	prevBtn := widget.NewButton("< Prev", func() {
+		ts.viewingMonth = ts.viewingMonth.AddDate(0, -1, 0)
+		ts.rebuildCalendar()
+	})
+	nextBtn := widget.NewButton("Next >", func() {
+		ts.viewingMonth = ts.viewingMonth.AddDate(0, 1, 0)
+		ts.rebuildCalendar()
+	})
+
+	nav := container.NewBorder(nil, nil, prevBtn, nextBtn, ts.monthLabel)
+	ts.canvas = container.NewBorder(nav, nil, nil, nil, ts.calWrap)
+
+	ts.rebuildCalendar()
+
+	// Groups.Set is called inside fyne.Do, so this listener fires on the main goroutine.
 	ws.Groups.AddListener(binding.NewDataListener(func() {
-		ts.wrap.Objects = []fyne.CanvasObject{ts.buildContent()}
-		ts.wrap.Refresh()
+		ts.loadData()
 	}))
 
 	return ts
 }
 
 // Canvas returns the Fyne canvas object.
-func (ts *Timesheet) Canvas() fyne.CanvasObject { return ts.wrap }
+func (ts *Timesheet) Canvas() fyne.CanvasObject { return ts.canvas }
 
-// buildContent constructs the calendar grid from the current groups data.
-func (ts *Timesheet) buildContent() fyne.CanvasObject {
+// loadData recomputes dayTotals from the current groups and resets to the search-start month.
+func (ts *Timesheet) loadData() {
 	dayTotals := map[string]int{}
-	length := ts.ws.Groups.Length()
-	for i := 0; i < length; i++ {
+	for i := 0; i < ts.ws.Groups.Length(); i++ {
 		val, err := ts.ws.Groups.GetValue(i)
 		if err != nil {
 			continue
@@ -52,59 +75,55 @@ func (ts *Timesheet) buildContent() fyne.CanvasObject {
 			continue
 		}
 		for _, item := range group.Items {
-			key := item.Started.Format("2006-01-02")
-			dayTotals[key] += item.TimeSpentSeconds
+			dayTotals[item.Started.Format("2006-01-02")] += item.TimeSpentSeconds
 		}
 	}
+	ts.dayTotals = dayTotals
 
 	monthStr, _ := ts.ws.SearchStart.Get()
-	displayMonth := time.Now()
 	if t, err := time.Parse("2006-01-02", monthStr); err == nil {
-		displayMonth = t
+		ts.viewingMonth = t
+	} else {
+		ts.viewingMonth = time.Now()
 	}
 
-	return buildCalendar(displayMonth, dayTotals)
+	ts.rebuildCalendar()
 }
 
-// buildCalendar constructs a 7-column grid for the given month.
-func buildCalendar(month time.Time, dayTotals map[string]int) fyne.CanvasObject {
+// rebuildCalendar replaces the grid for viewingMonth using the cached dayTotals.
+func (ts *Timesheet) rebuildCalendar() {
+	ts.monthLabel.SetText(ts.viewingMonth.Format("January 2006"))
+	ts.calWrap.Objects = []fyne.CanvasObject{buildCalendarGrid(ts.viewingMonth, ts.dayTotals)}
+	ts.calWrap.Refresh()
+}
+
+// buildCalendarGrid constructs a scrollable 7-column grid for the given month.
+func buildCalendarGrid(month time.Time, dayTotals map[string]int) fyne.CanvasObject {
 	first := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.Local)
 	daysInMonth := first.AddDate(0, 1, 0).AddDate(0, 0, -1).Day()
 
-	headers := []fyne.CanvasObject{}
-	for _, day := range []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"} {
-		headers = append(headers, widget.NewLabelWithStyle(day, fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
+	var cells []fyne.CanvasObject
+	for _, h := range []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"} {
+		cells = append(cells, widget.NewLabelWithStyle(h, fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 	}
 
-	cells := []fyne.CanvasObject{}
-	startWeekday := int(first.Weekday())
-	for i := 0; i < startWeekday; i++ {
+	for i := 0; i < int(first.Weekday()); i++ {
 		cells = append(cells, widget.NewLabel(""))
 	}
 
 	for d := 1; d <= daysInMonth; d++ {
 		date := time.Date(month.Year(), month.Month(), d, 0, 0, 0, 0, time.Local)
-		key := date.Format("2006-01-02")
-		secs := dayTotals[key]
-		cells = append(cells, dayCell(d, secs))
+		cells = append(cells, dayCell(d, dayTotals[date.Format("2006-01-02")]))
 	}
 
-	title := widget.NewLabelWithStyle(
-		month.Format("January 2006"),
-		fyne.TextAlignCenter,
-		fyne.TextStyle{Bold: true},
-	)
-
-	grid := container.NewGridWithColumns(7, append(headers, cells...)...)
-	return container.NewBorder(title, nil, nil, nil, container.NewScroll(grid))
+	return container.NewScroll(container.NewGridWithColumns(7, cells...))
 }
 
 // dayCell creates a single calendar cell with a heatmap background.
 func dayCell(day, totalSeconds int) fyne.CanvasObject {
 	hours := float64(totalSeconds) / 3600
-	bg := heatColor(hours)
 
-	rect := canvas.NewRectangle(bg)
+	rect := canvas.NewRectangle(heatColor(hours))
 	rect.SetMinSize(fyne.NewSize(40, 40))
 	rect.CornerRadius = 4
 
@@ -119,7 +138,7 @@ func dayCell(day, totalSeconds int) fyne.CanvasObject {
 	return container.NewStack(rect, container.NewVBox(dayLabel, hoursLabel))
 }
 
-// heatColor interpolates from light grey (0h) to blue-600 (8h+).
+// heatColor interpolates from light grey (0 h) to blue-600 (8 h+).
 func heatColor(hours float64) color.Color {
 	if hours <= 0 {
 		return color.NRGBA{R: 240, G: 240, B: 240, A: 255}

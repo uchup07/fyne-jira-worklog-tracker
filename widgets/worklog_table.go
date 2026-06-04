@@ -14,6 +14,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+const (
+	worklogPageSize  = 20
+	worklogRowHeight = float32(60)
+)
+
 var worklogCols = []struct {
 	header string
 	width  float32
@@ -25,69 +30,160 @@ var worklogCols = []struct {
 	{"Last Entry", 120},
 }
 
-// WorklogTable renders WorklogGroup data in a virtualised table.
+// WorklogTable renders WorklogGroup data in a virtualised table with pagination.
 type WorklogTable struct {
-	groups binding.UntypedList // []jira.WorklogGroup
-	canvas fyne.CanvasObject
+	groups      binding.UntypedList
+	allRows     []jira.WorklogGroup // full dataset, updated on every search
+	visibleRows []jira.WorklogGroup // slice of allRows for the current page
+	table       *widget.Table
+	pageLabel   *widget.Label
+	prevBtn     *widget.Button
+	nextBtn     *widget.Button
+	page        int
+	canvas      fyne.CanvasObject
 }
 
 // NewWorklogTable creates a table bound to ws.Groups.
 func NewWorklogTable(ws *state.WorklogState) *WorklogTable {
 	t := &WorklogTable{groups: ws.Groups}
 
-	headers := make([]fyne.CanvasObject, len(worklogCols))
-	for i, col := range worklogCols {
-		headers[i] = widget.NewLabelWithStyle(col.header, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	}
-	headerRow := container.NewHBox(headers...)
-
-	table := widget.NewTable(
-		func() (int, int) {
-			return t.groups.Length(), len(worklogCols)
-		},
+	t.table = widget.NewTable(
+		func() (int, int) { return len(t.visibleRows), len(worklogCols) },
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			lbl := widget.NewLabel("")
+			lbl.Wrapping = fyne.TextWrapWord
+			return lbl
 		},
 		func(id widget.TableCellID, cell fyne.CanvasObject) {
-			item, err := t.groups.GetValue(id.Row)
-			if err != nil {
+			if id.Row >= len(t.visibleRows) {
 				return
 			}
-			group, ok := item.(jira.WorklogGroup)
-			if !ok {
-				return
-			}
-			label := cell.(*widget.Label)
+			group := t.visibleRows[id.Row]
+			lbl := cell.(*widget.Label)
 			switch id.Col {
 			case 0:
-				label.SetText(group.WorkReference)
+				lbl.Alignment = fyne.TextAlignLeading
+				lbl.SetText(group.WorkReference)
 			case 1:
-				label.SetText(fmt.Sprintf("%.1fh", float64(group.TotalSeconds)/3600))
+				lbl.Alignment = fyne.TextAlignTrailing
+				lbl.SetText(fmt.Sprintf("%.1fh", float64(group.TotalSeconds)/3600))
 			case 2:
-				label.SetText(fmt.Sprintf("%d", len(group.Items)))
+				lbl.Alignment = fyne.TextAlignTrailing
+				lbl.SetText(fmt.Sprintf("%d", len(group.Items)))
 			case 3:
-				label.SetText(uniqueAuthors(group.Items))
+				lbl.Alignment = fyne.TextAlignLeading
+				lbl.SetText(uniqueAuthors(group.Items))
 			case 4:
-				label.SetText(lastEntryDate(group.Items))
+				lbl.Alignment = fyne.TextAlignLeading
+				lbl.SetText(lastEntryDate(group.Items))
 			}
 		},
 	)
 
-	for i, col := range worklogCols {
-		table.SetColumnWidth(i, col.width)
+	// Native sticky header row (Fyne 2.4+).
+	t.table.ShowHeaderRow = true
+	t.table.CreateHeader = func() fyne.CanvasObject {
+		return widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	}
+	t.table.UpdateHeader = func(id widget.TableCellID, cell fyne.CanvasObject) {
+		if id.Col >= 0 && id.Col < len(worklogCols) {
+			cell.(*widget.Label).SetText(worklogCols[id.Col].header)
+		}
 	}
 
-	// Refresh table whenever the groups binding changes
+	for i, col := range worklogCols {
+		t.table.SetColumnWidth(i, col.width)
+	}
+
+	// Pre-set a fixed row height for all rows in one page so wrapped text has
+	// enough vertical space. These heights persist across Refresh() calls.
+	for i := 0; i < worklogPageSize; i++ {
+		t.table.SetRowHeight(i, worklogRowHeight)
+	}
+
+	// Pagination controls.
+	t.pageLabel = widget.NewLabel("")
+	t.pageLabel.Alignment = fyne.TextAlignCenter
+	t.prevBtn = widget.NewButton("< Prev", func() {
+		if t.page > 0 {
+			t.goToPage(t.page - 1)
+		}
+	})
+	t.nextBtn = widget.NewButton("Next >", func() {
+		if t.page < t.pageCount()-1 {
+			t.goToPage(t.page + 1)
+		}
+	})
+	t.updatePagination()
+
+	// Groups.Set is always called inside fyne.Do, so the listener fires on the main goroutine.
 	ws.Groups.AddListener(binding.NewDataListener(func() {
-		table.Refresh()
+		n := ws.Groups.Length()
+		rows := make([]jira.WorklogGroup, 0, n)
+		for i := 0; i < n; i++ {
+			val, err := ws.Groups.GetValue(i)
+			if err == nil {
+				if g, ok := val.(jira.WorklogGroup); ok {
+					rows = append(rows, g)
+				}
+			}
+		}
+		t.allRows = rows
+		t.goToPage(0)
 	}))
 
-	t.canvas = container.NewBorder(headerRow, nil, nil, nil, table)
+	pagination := container.NewPadded(
+		container.NewBorder(nil, nil, t.prevBtn, t.nextBtn, t.pageLabel),
+	)
+	t.canvas = container.NewBorder(nil, pagination, nil, nil, t.table)
 	return t
 }
 
 // Canvas returns the Fyne canvas object.
 func (t *WorklogTable) Canvas() fyne.CanvasObject { return t.canvas }
+
+func (t *WorklogTable) pageCount() int {
+	n := len(t.allRows)
+	if n == 0 {
+		return 1
+	}
+	pages := n / worklogPageSize
+	if n%worklogPageSize != 0 {
+		pages++
+	}
+	return pages
+}
+
+func (t *WorklogTable) goToPage(p int) {
+	t.page = p
+	start := p * worklogPageSize
+	end := start + worklogPageSize
+	if end > len(t.allRows) {
+		end = len(t.allRows)
+	}
+	if start > len(t.allRows) {
+		start = len(t.allRows)
+	}
+	t.visibleRows = t.allRows[start:end]
+	t.table.ScrollTo(widget.TableCellID{Row: 0, Col: 0})
+	t.table.Refresh()
+	t.updatePagination()
+}
+
+func (t *WorklogTable) updatePagination() {
+	pages := t.pageCount()
+	t.pageLabel.SetText(fmt.Sprintf("Page %d of %d (%d items)", t.page+1, pages, len(t.allRows)))
+	if t.page > 0 {
+		t.prevBtn.Enable()
+	} else {
+		t.prevBtn.Disable()
+	}
+	if t.page < pages-1 {
+		t.nextBtn.Enable()
+	} else {
+		t.nextBtn.Disable()
+	}
+}
 
 // uniqueAuthors returns a comma-separated list of unique author display names (max 3 shown).
 func uniqueAuthors(items []jira.WorklogItem) string {

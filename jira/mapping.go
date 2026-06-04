@@ -109,12 +109,11 @@ func BuildMappingReport(
 		})
 	}
 
-	progress <- ProgressEvent{Type: "finalizing"}
-
 	if err := enrichWithIRQData(ctx, client, rows, cfg); err != nil {
 		return nil, err
 	}
 
+	progress <- ProgressEvent{Type: "finalizing"}
 	return buildMappingReport(rows), nil
 }
 

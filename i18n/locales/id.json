@@ -1,9 +1,14 @@
 {
   "app.title": "Jira Worklog Tracker",
   "nav.dashboard": "Dasbor",
-  "nav.report": "Laporan",
+  "nav.worklog": "Log Kerja",
+  "nav.user_overview": "Ikhtisar Pengguna",
   "nav.teams": "Tim",
+  "nav.reports": "Laporan",
+  "nav.report": "Laporan",
   "nav.settings": "Pengaturan",
+  "nav.section.main": "Menu Utama",
+  "nav.jira_config": "Konfigurasi Jira",
 
   "setup.title": "Selamat Datang di Jira Worklog Tracker",
   "setup.subtitle": "Masukkan kredensial Jira Anda untuk memulai.",

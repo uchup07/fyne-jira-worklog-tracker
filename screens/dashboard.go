@@ -45,7 +45,7 @@ func (d *Dashboard) Canvas() fyne.CanvasObject { return d.canvas }
 func (d *Dashboard) build() {
 	d.progress = widgets.NewSearchProgress()
 
-	filterBar := widgets.NewFilterBar(d.fs, d.handleSearch, d.handleCancel)
+	filterBar := widgets.NewFilterBar(d.fs, d.handleSearch, d.handleCancel, d.window)
 
 	worklogTable := widgets.NewWorklogTable(d.ws)
 	timesheet := widgets.NewTimesheet(d.ws)
